@@ -1,0 +1,8 @@
+file_format: "1"
+id: richkbd
+name: richkbd
+type: shield
+url: https://github.com/tapioki/cephalopoda/tree/main/Architeuthis%20dux
+requires: [seeeduino_xiao]
+features:
+  - keys
