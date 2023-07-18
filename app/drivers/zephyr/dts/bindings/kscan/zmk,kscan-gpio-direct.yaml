@@ -11,6 +11,10 @@ properties:
   input-gpios:
     type: phandle-array
     required: true
+  single-interrupt:
+    type: phandle
+    required: false
+    description: If present a change on any gpio causes this interrupt to fire
   debounce-period:
     type: int
     required: false
