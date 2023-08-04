@@ -44,6 +44,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define KSCAN_DIRECT_INPUT_CFG_INIT(idx, inst_idx)                                                 \
     KSCAN_GPIO_GET_BY_IDX(DT_DRV_INST(inst_idx), input_gpios, idx)
 
+#define INST_INTERRUPTS_LEN(n) DT_INST_PROP_LEN(n, interrupt_gpios)
+#define KSCAN_INTERRUPTS_CFG_INIT(idx, inst_idx)                                                   \
+    KSCAN_GPIO_GET_BY_IDX(DT_DRV_INST(inst_idx), interrupt_gpios, idx)
+
 struct kscan_direct_irq_callback {
     const struct device *dev;
     struct gpio_callback callback;
@@ -55,7 +59,8 @@ struct kscan_direct_data {
     kscan_callback_t callback;
     struct k_work_delayable work;
 #if USE_INTERRUPTS
-    /** Array of length config->inputs.len */
+    struct kscan_gpio_list interrupts;
+    /** Array of length config->interrupts.len */
     struct kscan_direct_irq_callback *irqs;
 #endif
     /** Timestamp of the current or scheduled scan. */
@@ -75,8 +80,8 @@ struct kscan_direct_config {
 static int kscan_direct_interrupt_configure(const struct device *dev, const gpio_flags_t flags) {
     const struct kscan_direct_data *data = dev->data;
 
-    for (int i = 0; i < data->inputs.len; i++) {
-        const struct gpio_dt_spec *gpio = &data->inputs.gpios[i].spec;
+    for (int i = 0; i < data->interrupts.len; i++) {
+        const struct gpio_dt_spec *gpio = &data->interrupts.gpios[i].spec;
 
         int err = gpio_pin_interrupt_configure_dt(gpio, flags);
         if (err) {
@@ -98,22 +103,6 @@ static int kscan_direct_interrupt_enable(const struct device *dev) {
 #if USE_INTERRUPTS
 static int kscan_direct_interrupt_disable(const struct device *dev) {
     return kscan_direct_interrupt_configure(dev, GPIO_INT_DISABLE);
-}
-#endif
-
-#if USE_INTERRUPTS
-static void kscan_direct_irq_callback_handler(const struct device *port, struct gpio_callback *cb,
-                                              const gpio_port_pins_t pin) {
-    struct kscan_direct_irq_callback *irq_data =
-        CONTAINER_OF(cb, struct kscan_direct_irq_callback, callback);
-    struct kscan_direct_data *data = irq_data->dev->data;
-
-    // Disable our interrupts temporarily to avoid re-entry while we scan.
-    kscan_direct_interrupt_disable(data->dev);
-
-    data->scan_time = k_uptime_get();
-
-    k_work_reschedule(&data->work, K_NO_WAIT);
 }
 #endif
 
@@ -271,19 +260,6 @@ static int kscan_direct_init_input_inst(const struct device *dev, const struct g
 
     LOG_DBG("Configured pin %u on %s for input", gpio->pin, gpio->port->name);
 
-#if USE_INTERRUPTS
-    struct kscan_direct_data *data = dev->data;
-    struct kscan_direct_irq_callback *irq = &data->irqs[index];
-
-    irq->dev = dev;
-    gpio_init_callback(&irq->callback, kscan_direct_irq_callback_handler, BIT(gpio->pin));
-    err = gpio_add_callback(gpio->port, &irq->callback);
-    if (err) {
-        LOG_ERR("Error adding the callback to the input device: %i", err);
-        return err;
-    }
-#endif
-
     return 0;
 }
 
@@ -302,6 +278,68 @@ static int kscan_direct_init_inputs(const struct device *dev) {
     return 0;
 }
 
+#if USE_INTERRUPTS
+
+static void kscan_direct_irq_callback_handler(const struct device *port, struct gpio_callback *cb,
+                                              const gpio_port_pins_t pin) {
+    struct kscan_direct_irq_callback *irq_data =
+        CONTAINER_OF(cb, struct kscan_direct_irq_callback, callback);
+    struct kscan_direct_data *data = irq_data->dev->data;
+
+    // Disable our interrupts temporarily to avoid re-entry while we scan.
+    kscan_direct_interrupt_disable(data->dev);
+
+    data->scan_time = k_uptime_get();
+    // kscan_direct_read(data->dev);
+    k_work_reschedule(&data->work, K_NO_WAIT);
+}
+
+static int kscan_direct_init_interrupt_inst(const struct device *dev,
+                                            const struct gpio_dt_spec *gpio, const int index,
+                                            bool toggle_mode) {
+    if (!device_is_ready(gpio->port)) {
+        LOG_ERR("GPIO is not ready: %s", gpio->port->name);
+        return -ENODEV;
+    }
+    int err = gpio_pin_configure_dt(
+        gpio, GPIO_INPUT | (toggle_mode ? kscan_gpio_get_extra_flags(gpio, false) : 0));
+    if (err) {
+        LOG_ERR("Unable to configure pin %u on %s for input", gpio->pin, gpio->port->name);
+        return err;
+    }
+
+    LOG_DBG("Configured pin %u on %s for input", gpio->pin, gpio->port->name);
+
+    struct kscan_direct_data *data = dev->data;
+    struct kscan_direct_irq_callback *irq = &data->irqs[index];
+
+    irq->dev = dev;
+    gpio_init_callback(&irq->callback, kscan_direct_irq_callback_handler, BIT(gpio->pin));
+    err = gpio_add_callback(gpio->port, &irq->callback);
+    if (err) {
+        LOG_ERR("Error adding the callback to the input device: %i", err);
+        return err;
+    }
+
+    return 0;
+}
+
+static int kscan_direct_init_interrupts(const struct device *dev) {
+    const struct kscan_direct_data *data = dev->data;
+    const struct kscan_direct_config *config = dev->config;
+
+    for (int i = 0; i < data->interrupts.len; i++) {
+        const struct gpio_dt_spec *gpio = &data->interrupts.gpios[i].spec;
+        int err = kscan_direct_init_interrupt_inst(dev, gpio, i, config->toggle_mode);
+        if (err) {
+            return err;
+        }
+    }
+
+    return 0;
+}
+#endif
+
 static int kscan_direct_init(const struct device *dev) {
     struct kscan_direct_data *data = dev->data;
 
@@ -311,7 +349,9 @@ static int kscan_direct_init(const struct device *dev) {
     kscan_gpio_list_sort_by_port(&data->inputs);
 
     kscan_direct_init_inputs(dev);
-
+#if USE_INTERRUPTS
+    kscan_direct_init_interrupts(dev);
+#endif
     k_work_init_delayable(&data->work, kscan_direct_work_handler);
 
     return 0;
@@ -334,13 +374,17 @@ static const struct kscan_driver_api kscan_direct_api = {
                                                                                                    \
     static struct debounce_state kscan_direct_state_##n[INST_INPUTS_LEN(n)];                       \
                                                                                                    \
+    COND_INTERRUPTS((struct kscan_gpio kscan_interrupts_##n[] = {                                  \
+                         LISTIFY(INST_INTERRUPTS_LEN(n), KSCAN_INTERRUPTS_CFG_INIT, (, ), n)};))   \
+                                                                                                   \
     COND_INTERRUPTS(                                                                               \
-        (static struct kscan_direct_irq_callback kscan_direct_irqs_##n[INST_INPUTS_LEN(n)];))      \
+        (struct kscan_direct_irq_callback kscan_direct_irqs_##n[INST_INTERRUPTS_LEN(n)];))         \
                                                                                                    \
     static struct kscan_direct_data kscan_direct_data_##n = {                                      \
         .inputs = KSCAN_GPIO_LIST(kscan_direct_inputs_##n),                                        \
         .pin_state = kscan_direct_state_##n,                                                       \
-        COND_INTERRUPTS((.irqs = kscan_direct_irqs_##n, ))};                                       \
+        COND_INTERRUPTS((.interrupts = KSCAN_GPIO_LIST(kscan_interrupts_##n), ))                   \
+            COND_INTERRUPTS((.irqs = kscan_direct_irqs_##n, ))};                                   \
                                                                                                    \
     static struct kscan_direct_config kscan_direct_config_##n = {                                  \
         .debounce_config =                                                                         \
