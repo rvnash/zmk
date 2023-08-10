@@ -63,7 +63,7 @@
             #binding-cells = <2>;
             flavor = "tap-preferred";
             tapping-term-ms = <180>;
-            quick-tap-ms = <50>; // the greater the value, the harder it will be to invoke the hold behavior
+            quick-tap-ms = <100>; // the greater the value, the harder it will be to invoke the hold behavior
             global-quick-tap;
             bindings = <&kp>, <&kp>;
         };
@@ -132,55 +132,55 @@
 
         media_layer {
             bindings = <
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &trans     &trans       &trans    &trans   &trans        &trans
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &trans     &trans       &trans    &trans   &kp C_BRI_UP  &trans
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &trans     &trans       &trans    &trans   &kp C_BRI_DN  &trans
-                                    &trans    &trans      &trans   /**/   &kp C_MUTE &kp C_VOL_DN &kp C_VOL_UP
+    &none       &none     &none     &none     &none       &none    /**/   &none      &none        &none     &none    &none         &none 
+    &none       &none     &none     &none     &none       &none    /**/   &none      &none        &none     &none    &kp C_BRI_UP  &none 
+    &none       &none     &none     &none     &none       &none    /**/   &none      &none        &none     &none    &kp C_BRI_DN  &none 
+                                    &none     &none       &none    /**/   &kp C_MUTE &kp C_VOL_DN &kp C_VOL_UP
             >;
         };
 
         nav_layer {
             bindings = <
-    &bootloader &trans    &trans    &trans    &trans      &trans   /**/   &trans   &trans    &trans    &trans   &trans     &trans
-    &trans      &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &trans   /**/   &trans   &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &trans
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &kp INS  &kp HOME  &kp PGDN  &kp PGUP &kp END    &trans
-                                    &trans    &trans      &trans   /**/   &trans   &trans    &trans
+    &bootloader &none     &none     &none     &none       &none    /**/   &none      &none     &none     &none    &none      &none 
+    &none       &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &none    /**/   &caps_word &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &none 
+    &none       &none     &none     &none     &none       &none    /**/   &kp INS    &kp HOME  &kp PGDN  &kp PGUP &kp END    &none 
+                                    &none     &none       &none    /**/   &none      &none     &none 
             >;
         };
 
         mouse_layer {
             bindings = <
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &trans   &trans    &trans    &trans   &trans     &trans
-    &trans      &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &trans   /**/   &trans   &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &trans
-    &trans      &trans    &trans    &trans    &trans      &trans   /**/   &kp INS  &kp HOME  &kp PGDN  &kp PGUP &kp END    &trans
-                                    &trans    &trans      &trans   /**/   &trans   &trans    &trans
+    &none       &none     &none     &none     &none       &none    /**/   &none    &none     &none     &none    &none      &none 
+    &none       &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &none    /**/   &none    &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &none 
+    &none       &none     &none     &none     &none       &none    /**/   &kp INS  &kp HOME  &kp PGDN  &kp PGUP &kp END    &none 
+                                    &none     &none       &none    /**/   &none    &none     &none 
             >;
         };
 
         symbol_layer {
             bindings = <
-    &trans        &kp LBRC  &kp AMPS  &kp STAR  &kp LPAR    &kp RBRC  /**/   &trans    &trans     &trans    &trans    &trans     &trans
-    &trans        &kp COLON &kp DLLR  &kp PRCNT &kp CARET   &kp PLUS  /**/   &trans    &kp RSHIFT &kp RCMD  &kp RALT  &kp RCTRL  &trans
-    &kp LG(RBKT)  &kp TILDE &kp EXCL  &kp AT    &kp HASH    &kp PIPE  /**/   &trans  &trans &trans &trans &trans     &kp LG(RBKT)
-                                      &kp LPAR  &kp RPAR    &kp UNDER /**/   &trans     &trans    &trans
+    &none         &kp LBRC  &kp AMPS  &kp STAR  &kp LPAR    &kp RBRC  /**/   &none     &none      &none     &none     &none      &none 
+    &none         &kp COLON &kp DLLR  &kp PRCNT &kp CARET   &kp PLUS  /**/   &none     &kp RSHIFT &kp RCMD  &kp RALT  &kp RCTRL  &none 
+    &kp LG(RBKT)  &kp TILDE &kp EXCL  &kp AT    &kp HASH    &kp PIPE  /**/   &none     &none      &none     &none     &none      &kp LG(RBKT)
+                                      &kp LPAR  &kp RPAR    &kp UNDER /**/   &none     &none      &none 
             >;
         };
 
         number_layer {
             bindings = <
-    &trans           &kp LBKT  &kp N7    &kp N8    &kp N9      &kp RBKT  /**/   &trans    &trans     &trans    &trans    &trans     &trans
-    &trans           &kp SEMI  &kp N4    &kp N5    &kp N6      &kp EQUAL /**/   &trans    &kp RSHIFT &kp RCMD  &kp RALT  &kp RCTRL  &trans
-    &kp LA(LG(LEFT)) &kp GRAVE &kp N1    &kp N2    &kp N3      &kp BSLH  /**/   &trans  &trans &trans &trans &trans     &kp LA(LG(RIGHT))
-                                         &kp N0    &kp DOT     &kp MINUS /**/   &trans     &trans    &trans
+    &none            &kp LBKT  &kp N7    &kp N8    &kp N9      &kp RBKT  /**/   &none     &none      &none     &none     &none      &none 
+    &none            &kp SEMI  &kp N4    &kp N5    &kp N6      &kp EQUAL /**/   &none     &kp RSHIFT &kp RCMD  &kp RALT  &kp RCTRL  &none 
+    &kp LA(LG(LEFT)) &kp GRAVE &kp N1    &kp N2    &kp N3      &kp BSLH  /**/   &none     &none      &none     &none     &none      &kp LA(LG(RIGHT))
+                                         &kp N0    &kp DOT     &kp MINUS /**/   &none     &none      &none 
             >;
         };
 
         function_layer {
             bindings = <
-    &trans    &kp F12   &kp F7    &kp F8    &kp F9      &trans   /**/   &trans   &trans    &trans    &trans   &trans     &trans
-    &trans    &kp F11   &kp F4    &kp F5    &kp F6      &trans   /**/   &trans   &trans    &trans    &trans   &trans     &trans
-    &trans    &kp F10   &kp F1    &kp F2    &kp F3      &trans   /**/   &trans   &trans    &trans    &trans   &trans     &trans
-                                  &trans    &trans      &trans   /**/   &trans   &trans    &trans
+    &none     &kp F12   &kp F7    &kp F8    &kp F9      &none    /**/   &none    &none     &none     &none    &none      &none 
+    &none     &kp F11   &kp F4    &kp F5    &kp F6      &none    /**/   &none    &none     &none     &none    &none      &none 
+    &none     &kp F10   &kp F1    &kp F2    &kp F3      &none    /**/   &none    &none     &none     &none    &none      &none 
+                                  &none     &none       &none    /**/   &none    &none     &none 
             >;
         };
 
