@@ -106,3 +106,8 @@ RC(0,31) RC(0,32) RC(0,33) RC(0,34) RC(0,35) RC(0,36) /**/ RC(0, 5) RC(0, 6) RC(
         ngpios = <16>;
     };
 };
+
+&xiao_spi { status = "disabled"; };
+&xiao_serial { status = "disabled"; };
+// Need to disable this because it prevents sleeping.
+&qspi { status = "disabled";};

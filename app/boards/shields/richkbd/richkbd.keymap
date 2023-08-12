@@ -105,7 +105,12 @@
         // FAST_COMBO(ls_arr, &ls_arr, 1 2)
         // FAST_COMBO(ex_pipe, &ex_pipe, 22 23)
         // FAST_COMBO(eex_tag, &eex_tag, 27 28)
-        SLOW_COMBO(capswrd, &caps_word, 20 29)
+        SLOW_COMBO(combo_lbkt, &kp LBKT, 1 2)
+        SLOW_COMBO(combo_rbkt, &kp RBKT, 9 10)
+        SLOW_COMBO(combo_lpar, &kp LPAR, 2 3)
+        SLOW_COMBO(combo_rpar, &kp RPAR, 8 9)
+        SLOW_COMBO(combo_lbrc, &kp LBRC, 3 4)
+        SLOW_COMBO(combo_rbrc, &kp RBRC, 7 8)
      };
 
     macros {
