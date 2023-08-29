@@ -55,19 +55,6 @@
 / {
 
       behaviors {
-        /* Shift-key homerow mod is fundamentally different than the others
-           because it's activated when typing at speed */
-        hrs: home_row_shift {
-            compatible = "zmk,behavior-hold-tap";
-            label = "HOME_ROW_MODS";
-            #binding-cells = <2>;
-            flavor = "tap-preferred";
-            tapping-term-ms = <180>;
-            quick-tap-ms = <100>; // the greater the value, the harder it will be to invoke the hold behavior
-            global-quick-tap;
-            bindings = <&kp>, <&kp>;
-        };
-
         hrm: home_row_mods {
             compatible = "zmk,behavior-hold-tap";
             label = "SLOW_HOME_ROW_MODS";
@@ -129,7 +116,7 @@
         base_layer {
             bindings = <
 &scrn_shot    &kp Q           &kp W           &kp F           &kp P              &kp B          /**/     &kp J           &kp L           &kp U           &kp Y           &kp SQT            &kp LS(LG(A))
-&kp LCTRL     &hrm LCTRL A    &hrm LALT R     &hrm LCMD S     &hrs LSHIFT T      &kp G          /**/     &kp M           &hrs RSHIFT N   &hrm RCMD E     &hrm RALT I     &hrm RCTRL O       &kp LS(LG(V))
+&kp LCTRL     &hrm LCTRL A    &hrm LALT R     &hrm LCMD S     &hrm LSHIFT T      &kp G          /**/     &kp M           &hrm RSHIFT N   &hrm RCMD E     &hrm RALT I     &hrm RCTRL O       &kp LS(LG(V))
 &kp LC(LEFT)  &kp Z           &kp X           &kp C           &kp D              &kp V          /**/     &kp K           &kp H           &kp COMMA       &kp DOT         &kp FSLH           &kp LC(RIGHT) 
                                               &qlt MDA ESC    &qlt NAV SPACE     &qlt MOU TAB   /**/     &qlt SYM RET    &qlt NUM BSPC   &qlt FUN DEL
             >;
