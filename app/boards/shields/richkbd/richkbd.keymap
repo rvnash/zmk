@@ -61,7 +61,7 @@
             #binding-cells = <2>;
             flavor = "balanced";
             tapping-term-ms = <250>;
-            quick-tap-ms = <150>; // the greater the value, the harder it will be to invoke the hold behavior
+            quick-tap-ms = <0>; // the greater the value, the harder it will be to invoke the hold behavior
             global-quick-tap;
             bindings = <&kp>, <&kp>;
         };
@@ -72,7 +72,7 @@
             #binding-cells = <2>;
             flavor = "balanced";
             tapping-term-ms = <200>;
-            quick-tap-ms = <180>;
+            quick-tap-ms = <0>;
             bindings = <&mo>, <&kp>;
         };
 
@@ -133,7 +133,7 @@
 
         nav_layer {
             bindings = <
-    &bootloader &none     &none     &none     &none       &none    /**/   &none      &none     &none     &none    &none      &none 
+    &bootloader &bt BT_CLR &none    &none     &none       &none    /**/   &none      &none     &none     &none    &none      &none 
     &none       &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &none    /**/   &caps_word &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &none 
     &none       &none     &none     &none     &none       &none    /**/   &kp INS    &kp HOME  &kp PGDN  &kp PGUP &kp END    &none 
                                     &none     &none       &none    /**/   &none      &none     &none 
