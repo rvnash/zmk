@@ -11,9 +11,10 @@
 #define DEFAULT 0
 #define MDA     1
 #define NAV     2
-#define SYM     3
-#define NUM     4
-#define FUN     5
+#define MOU     3
+#define SYM     4
+#define NUM     5
+#define FUN     6
 
 /* Combo helper, to DRY up combo definitions
  * usage: COMBO(vol_up, &kp C_VOL_UP,  9 19) */
@@ -45,17 +46,6 @@
         bindings = <keys>;                 \
     };
 
-/* SHIFT_MORPH helper to DRY up SHIFT morpths
- * usage: SHIFT_MORPH(name, &kp A &kp B) */
-#define SHIFT_MORPH(name, keys)                  \
-    name: name##_macro {                   \
-        label = #name;                     \
-        compatible = "zmk,behavior-mod-morph"; \
-        #binding-cells = <0>;              \
-        bindings = <keys>;                 \
-        mods = <(MOD_LSFT | MOD_RSFT)>;    \
-    };
-
 /* This is for snoyer's capslock based caps_word */
 // &caps_word {
 //   disable-on-keys = <SPACE TAB ENTER PERIOD>;
@@ -75,6 +65,16 @@
             bindings = <&kp>, <&kp>;
         };
         
+        sh_mod: shift_mods {
+            compatible = "zmk,behavior-hold-tap";
+            label = "SHIFT_MODS";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <250>;
+            quick-tap-ms = <240>;
+            bindings = <&kp>, <&kp>;
+        };
+
         qlt: layer_tap_with_quick_tap {
             compatible = "zmk,behavior-hold-tap";
             label = "QUICK_LAYER_TAP";
@@ -83,22 +83,6 @@
             tapping-term-ms = <250>;
             quick-tap-ms = <240>;
             bindings = <&mo>, <&kp>;
-        };
-        
-        lsh_caps: lsh_caps {
-            compatible = "zmk,behavior-tap-dance";
-            label = "LSHIFT_or_CAPSWORD";
-            #binding-cells = <0>;
-            tapping-term-ms = <200>;
-            bindings = <&kp LSHIFT>, <&caps_word>;
-        };
-        
-        rsh_caps: rsh_caps {
-            compatible = "zmk,behavior-tap-dance";
-            label = "RSHIFT_or_CAPSWORD";
-            #binding-cells = <0>;
-            tapping-term-ms = <200>;
-            bindings = <&kp RSHIFT>, <&caps_word>;
         };
 
     };
@@ -123,19 +107,19 @@
         MACRO(scrn_shot, &kp LS(LG(N4)))  // Mac screenshot
         MACRO(zm_mute, &kp LS(LG(A)))     // Zoom mute
         MACRO(zm_cam, &kp LS(LG(V)))      // Zoom cam on/off
-        MACRO(deskl, &kp LC(LEFT))           // Mac desktop previous
-        MACRO(deskr, &kp LC(RIGHT))          // Mac desktop next
+        MACRO(dsktp_right, &kp LC(RIGHT)) // Mac desktop next
+        MACRO(dsktp_left, &kp LC(LEFT))   // Mac desktop previous
     };
-    
+
     keymap {
         compatible = "zmk,keymap";
 
         base_layer {
             bindings = <
-&scrn_shot   &kp Q         &kp W        &kp F         &kp P            &kp B       /**/  &kp J         &kp L          &kp U        &kp Y        &kp SQT       &zm_mute
-&kp LCTRL    &hrm LCTRL A  &hrm LALT R  &hrm LCMD S   &kp T            &kp G       /**/  &kp M         &kp N          &hrm RCMD E  &hrm RALT I  &hrm RCTRL O  &zm_cam
-&lsh_caps    &kp Z         &kp X        &kp C         &kp D            &kp V       /**/  &kp K         &kp H          &kp COMMA    &kp DOT      &kp FSLH      &rsh_caps
-                                        &qlt MDA ESC  &qlt NAV SPACE   &kp TAB     /**/  &qlt SYM RET  &qlt NUM BSPC  &qlt FUN DEL
+&scrn_shot    &kp Q           &kp W           &kp F           &kp P              &kp B          /**/     &kp J           &kp L           &kp U           &kp Y           &kp SQT            &zm_mute
+&kp LCTRL     &hrm LCTRL A    &hrm LALT R     &hrm LCMD S     &sh_mod LSHIFT T   &kp G          /**/     &kp M           &sh_mod RSHIFT N &hrm RCMD E    &hrm RALT I     &hrm RCTRL O       &zm_cam
+&dsktp_left   &kp Z           &kp X           &kp C           &kp D              &kp V          /**/     &kp K           &kp H           &kp COMMA       &kp DOT         &kp FSLH           &dsktp_right
+                                              &qlt MDA ESC    &qlt NAV SPACE     &qlt MOU TAB   /**/     &qlt SYM RET    &qlt NUM BSPC   &qlt FUN DEL
             >;
         };
 
@@ -152,8 +136,17 @@
             bindings = <
     &bootloader &bt BT_CLR &none    &none     &none       &none    /**/   &none      &none     &none     &none    &none      &none 
     &none       &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &none    /**/   &caps_word &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &none 
-    &deskl      &none     &none     &none     &none       &none    /**/   &kp INS    &kp HOME  &kp PGDN  &kp PGUP &kp END    &deskr
+    &dsktp_left &none     &none     &none     &none       &none    /**/   &kp INS    &kp HOME  &kp PGDN  &kp PGUP &kp END    &dsktp_right
                                     &none     &none       &none    /**/   &none      &none     &none 
+            >;
+        };
+
+        mouse_layer {
+            bindings = <
+    &none       &none     &none     &none     &none       &none    /**/   &none    &none     &none     &none    &none      &none 
+    &none       &kp LCTRL &kp LALT  &kp LCMD  &kp LSHIFT  &none    /**/   &none    &kp LEFT  &kp DOWN  &kp UP   &kp RIGHT  &none 
+    &none       &none     &none     &none     &none       &none    /**/   &kp INS  &kp HOME  &kp PGDN  &kp PGUP &kp END    &none 
+                                    &none     &none       &none    /**/   &none    &none     &none 
             >;
         };
 
