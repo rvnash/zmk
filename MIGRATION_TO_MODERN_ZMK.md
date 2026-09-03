@@ -88,6 +88,11 @@ U4-1            XIAO D0
 nRF52840's internal one, which is why the overlay says
 `interrupt-gpios = <&xiao_d 0 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>`.
 
+For that to work at all, every one of those six pins must be **open-drain**. That is
+`IOCON.ODR` (bit 2) — one of the two bits in our `iocon = 0x4444`. Note the INTA/INTB pairs are
+physically tied *within* each chip too, so without open-drain a single chip's two INT pins fight
+each other, never mind across chips.
+
 Two more facts from the same netlist, both verified rather than inferred:
 
 ```
@@ -101,11 +106,6 @@ outputs — see the end of this section. The floating `RESET` is out of spec per
 datasheet (it wants to be biased) but has worked for years; it is **not** a migration concern, just
 a note for a future board revision. It does mean the modern driver's optional `reset-gpios` is
 unavailable to us — there is no GPIO on that net to name.
-
-For that to work at all, every one of those six pins must be **open-drain**. That is
-`IOCON.ODR` (bit 2) — one of the two bits in our `iocon = 0x4444`. Note the INTA/INTB pairs are
-physically tied *within* each chip too, so without open-drain a single chip's two INT pins fight
-each other, never mind across chips.
 
 The modern driver writes **`write_iocon(dev, REG_IOCON_MIRROR)` — bit 6 only.** There is no `ODR`
 define in `gpio_mcp23xxx.h`, no `ODR` write anywhere in the driver, and no binding property for
@@ -226,12 +226,46 @@ None of it requires committing to the migration, and item 1 has to start weeks a
 **0.1 Start the power baseline now. This is the only perishable item.**
 
 Risk R4 is the real danger here, and the old firmware's power behaviour can only be measured while
-the old firmware is the one running. Record the date and battery percentage today, then check daily
-for one to two weeks, and write the %/day figure into this file.
+the old firmware is the one running. Without that number a post-migration regression is
+unfalsifiable — exactly the position the 2023 bring-up ended in ("fixed the power consumption
+problem, but not sure which change did it"). A few lines of data now replace a week of bisecting
+later.
 
-Without that number a post-migration regression is unfalsifiable — which is exactly the position
-the 2023 bring-up ended in ("fixed the power consumption problem, but not sure which change did
-it"). One line of data now replaces a week of bisecting later.
+**What the baseline measures.** Tie it to a specific build or it means nothing:
+
+| | |
+| --- | --- |
+| firmware | `build/zephyr/zmk.uf2`, md5 `9a81e8d92cede1058e1786bd5871bdc1` |
+| built | 2026-09-03 11:00 |
+| source | commit `3e94be47` + `patches/0001-mcp230xx-init-registers.patch` |
+| archived as | `firmware/zmk-2026-09-03-known-good.uf2` (per 0.2) |
+| relevant config | `ZMK_IDLE_TIMEOUT=1`, `ZMK_SLEEP=y`, `ZMK_IDLE_SLEEP_TIMEOUT=900000`, `ZMK_KSCAN_DIRECT_POLLING=n`, `&qspi` disabled |
+
+**How to read the percentage.** By hand, from the Bluetooth menu-bar item or System Settings →
+Bluetooth (ZMK reports it over BLE BAS). It cannot be scripted on this Mac: `ioreg -r -k
+BatteryPercent`, `ioreg -l | grep -i batterylevel`, and `system_profiler SPBluetoothDataType` were
+all checked on 2026-09-03 and none expose a level for `richkbd` (`DA:24:D1:79:29:D7`), even while
+connected.
+
+**Log.** Same time of day each reading, ideally after a normal day of typing:
+
+| date | battery % | notes |
+| --- | --- | --- |
+| 2026-09-03 | | baseline start — firmware above, freshly flashed |
+| | | |
+| | | |
+| | | |
+| | | |
+| | | |
+| | | |
+
+**Derived figure:** ______ %/day over ______ days.
+
+**Acceptance after migration:** re-measure over the same span and compare. Within ~20 %/day of the
+baseline is noise; consistently worse is the R4 regression, and the first suspects are the missing
+`iodir` unused-pin handling (§3) and `&qspi` re-enabling itself via ZMK's modern board dts (step 3).
+Record the post-migration figure here too rather than in a new file, so the comparison stays in one
+place.
 
 **0.2 Make rollback real, then prove it works.**
 
