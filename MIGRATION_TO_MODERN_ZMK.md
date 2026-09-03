@@ -555,6 +555,26 @@ What was actually done, including where reality differed from the plan above.
 | zephyr fork, sleep fallback | same repo, branch `richkbd-odr-level-int` — **untested**, see that repo's `VALIDATION.md` |
 | rollback artifacts | `firmware/` in this repo |
 
+### It builds
+
+GitHub Actions is green on the first attempt (run `33777023845`). The log confirms the parts that
+could have silently gone wrong:
+
+| checked | result |
+| --- | --- |
+| our zephyr fork was used | `--- zephyr: fetching, need revision richkbd-odr` from `github.com/rvnash/zephyr`, `HEAD is now at b6394359 drivers: gpio: mcp23xxx: set IOCON.ODR alongside MIRROR` |
+| the new compatible resolves | `CONFIG_DT_HAS_MICROCHIP_MCP23017_ENABLED=y`, `CONFIG_GPIO_MCP230XX=y` |
+| all three expanders exist | `io_0: mcp23017@20`, `io_1: mcp23017@21`, `io_2: mcp23017@22` in the devicetree dump |
+| the board target is right | `CONFIG_ZMK_BOARD_COMPAT=y` for `xiao_ble/nrf52840/zmk` (ZMK's compat check `exit 1`s otherwise) |
+| debounce moved to devicetree | `CONFIG_ZMK_KSCAN_DEBOUNCE_{PRESS,RELEASE}_MS=` empty, deferring to the DT properties |
+| size | FLASH 27.02% of 788 KB, up from 22.02% on the old firmware; `richkbd.uf2` 436224 B |
+
+A second commit converted the keymap's nine deprecated `label` properties to `display-name`, which
+was the only warning the build produced about our own files.
+
+**A green build says the firmware compiles and links. It says nothing about whether the keyboard
+works** — in particular nothing about the sleep risk below.
+
 ### Decisions that differed from the plan
 
 **ZMK `main` (Zephyr 4.1) was kept over ZMK `v0.3` (Zephyr 3.5), though 3.5 would have been a

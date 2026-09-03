@@ -1,5 +1,11 @@
 # How to build richkbd firmware from the command line
 
+> **This document covers the legacy fork** (Zephyr 3.2, the tree in this repo). As of 2026-09-03
+> there is a modern replacement at [rvnash/richkbd-zmk-config](https://github.com/rvnash/richkbd-zmk-config),
+> which builds on GitHub Actions with no Docker at all. It has **not been validated on hardware
+> yet** — see that repo's `VALIDATION.md` and `MIGRATION_TO_MODERN_ZMK.md` here. Until it is
+> proven, this is still how the firmware on the keyboard gets built.
+
 VSCode is **not** required. VSCode was only ever a convenience wrapper: `.vscode/tasks.json`
 just runs `west build`, and `.devcontainer/` just starts the ZMK toolchain container. You can do
 both yourself from a terminal.
