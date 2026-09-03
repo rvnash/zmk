@@ -188,19 +188,23 @@ whose layout is:
 
 ```
 richkbd-zmk-config/            ← new repo (or reuse this one, see §5 step 1)
-├── .github/workflows/build.yml   stock ZMK GHA workflow
-├── build.yaml                    board+shield matrix
+├── build.sh                      local build, in the toolchain container
 ├── config/
-│   └── west.yml                  pins zmk (and our zephyr fork, per §3 Option A)
+│   ├── west.yml                  pins zmk and our zephyr fork; deps land in deps/
+│   ├── richkbd.keymap
+│   └── richkbd.conf
 ├── boards/shields/richkbd/
 │   ├── Kconfig.shield
 │   ├── Kconfig.defconfig
 │   ├── richkbd.overlay
-│   ├── richkbd.conf
-│   ├── richkbd.keymap
 │   └── richkbd.zmk.yml
-└── zephyr/module.yml             build.settings.board_root: .
+├── zephyr/module.yml             build.settings.board_root: .
+└── deps/                         fetched by west update (gitignored)
 ```
+
+**Built locally, not in CI.** The repo initially used the stock ZMK GitHub Actions workflow, which
+is how the port was proven to compile, but CI was removed afterwards on request: local builds are
+the primary path, and nothing about firmware for one keyboard needs a hosted runner.
 
 `build.yaml`:
 
@@ -421,15 +425,12 @@ branch, and point `config/west.yml` at it.
 
 ### Step 6 — build
 
-Push and let GHA build. For local iteration, the Docker recipes in `HOW_TO_BUILD_FROM_CLI.md`
-still apply with the new board target:
-
 ```sh
-west build -p -b xiao_ble/nrf52840/zmk -d build config -- -DSHIELD=richkbd
+./build.sh
 ```
 
-(Exact `-d`/source-dir arguments differ for a config-module layout — check ZMK's current
-local-toolchain docs at build time.)
+First run initialises the west workspace and fetches ~3 GB into `deps/`; later runs are
+incremental. `./build.sh -p` for pristine, `./build.sh --shell` for a container shell.
 
 ### Step 7 — validate on hardware
 
