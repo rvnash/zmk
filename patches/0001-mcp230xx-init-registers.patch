@@ -1,0 +1,143 @@
+commit ac538e059adf02f66ce9344752001cf0154e60ba
+Author: Richard Nash <rvnash@gmail.com>
+Date:   Thu Aug 10 00:31:08 2023 +0000
+
+    Updating mcp230xx code to initialize the registers.
+
+diff --git a/drivers/gpio/gpio_mcp230xx.c b/drivers/gpio/gpio_mcp230xx.c
+index 3d1a1b477..157b2e573 100644
+--- a/drivers/gpio/gpio_mcp230xx.c
++++ b/drivers/gpio/gpio_mcp230xx.c
+@@ -10,17 +10,19 @@
+  * @file Driver for MPC230xx I2C-based GPIO driver.
+  */
+ 
++#include "gpio_mcp23xxx.h"
++#include "gpio_utils.h"
++
+ #include <errno.h>
+-#include <zephyr/kernel.h>
++
+ #include <zephyr/device.h>
+-#include <zephyr/sys/byteorder.h>
+ #include <zephyr/drivers/gpio.h>
+ #include <zephyr/drivers/i2c.h>
+-
+-#include "gpio_utils.h"
+-#include "gpio_mcp23xxx.h"
++#include <zephyr/kernel.h>
++#include <zephyr/sys/byteorder.h>
+ 
+ #define LOG_LEVEL CONFIG_GPIO_LOG_LEVEL
++
+ #include <zephyr/logging/log.h>
+ LOG_MODULE_REGISTER(gpio_mcp230xx);
+ 
+@@ -31,7 +33,6 @@ static int mcp230xx_read_port_regs(const struct device *dev, uint8_t reg, uint16
+ 	int ret;
+ 
+ 	uint8_t nread = (config->ngpios == 8) ? 1 : 2;
+-
+ 	ret = i2c_burst_read_dt(&config->bus.i2c, reg, (uint8_t *)&port_data, nread);
+ 	if (ret < 0) {
+ 		LOG_ERR("i2c_read failed!");
+@@ -39,6 +40,7 @@ static int mcp230xx_read_port_regs(const struct device *dev, uint8_t reg, uint16
+ 	}
+ 
+ 	*buf = sys_le16_to_cpu(port_data);
++	LOG_DBG("Read reg: 0x%02x, value: 0x%04x\n", reg, *buf);
+ 
+ 	return 0;
+ }
+@@ -53,7 +55,7 @@ static int mcp230xx_write_port_regs(const struct device *dev, uint8_t reg, uint1
+ 
+ 	buf[0] = reg;
+ 	sys_put_le16(value, &buf[1]);
+-
++	LOG_DBG("Write: %x: %x %x", buf[0], buf[1], buf[2]);
+ 	ret = i2c_write_dt(&config->bus.i2c, buf, nwrite);
+ 	if (ret < 0) {
+ 		LOG_ERR("i2c_write failed!");
+@@ -71,36 +73,60 @@ static int mcp230xx_bus_is_ready(const struct device *dev)
+ 		LOG_ERR("I2C bus %s not ready", config->bus.i2c.bus->name);
+ 		return -ENODEV;
+ 	}
++	mcp230xx_write_port_regs(dev, REG_IODIR << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.iodir);
++	mcp230xx_write_port_regs(dev, REG_IPOL << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.ipol);
++	mcp230xx_write_port_regs(dev, REG_GPINTEN << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.gpinten);
++	mcp230xx_write_port_regs(dev, REG_DEFVAL << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.defval);
++	mcp230xx_write_port_regs(dev, REG_INTCON << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.intcon);
++	mcp230xx_write_port_regs(dev, REG_IOCON << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.iocon);
++	mcp230xx_write_port_regs(dev, REG_GPPU << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.gppu);
++	mcp230xx_write_port_regs(dev, REG_INTF << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.intf);
++	mcp230xx_write_port_regs(dev, REG_INTCAP << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.intcap);
++	mcp230xx_write_port_regs(dev, REG_GPIO << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.gpio);
++	mcp230xx_write_port_regs(dev, REG_IKAT << 1,
++				 ((struct mcp23xxx_drv_data *)dev->data)->reg_cache.olat);
+ 
+ 	return 0;
+ }
+ 
+ #define DT_DRV_COMPAT microchip_mcp230xx
+ 
++// Write 0xffff to `gpinten` to enable interrupt on change.
++// Write 0xffff to `intcon` to compare to last value register.
++// Write 0b01000000  to `iocon` to mirror interrupts
++
+ #define GPIO_MCP230XX_DEVICE(n)                                                                    \
+-	static struct mcp23xxx_drv_data mcp230xx_##inst##_drvdata = {                              \
+-		/* Default for registers according to datasheet */                                 \
+-		.reg_cache.iodir = 0xFFFF, .reg_cache.ipol = 0x0,   .reg_cache.gpinten = 0x0,      \
+-		.reg_cache.defval = 0x0,   .reg_cache.intcon = 0x0, .reg_cache.iocon = 0x0,        \
+-		.reg_cache.gppu = 0x0,	   .reg_cache.intf = 0x0,   .reg_cache.intcap = 0x0,       \
+-		.reg_cache.gpio = 0x0,	   .reg_cache.olat = 0x0,                                  \
++	static struct mcp23xxx_drv_data mcp230xx_drvdata_##n = {                                   \
++		/* Set the registers to these defaults */                                          \
++		.reg_cache.iodir = 0x7F7F,   .reg_cache.ipol = 0x0,                                \
++		.reg_cache.gpinten = 0xFFFF, .reg_cache.defval = 0x0,                              \
++		.reg_cache.intcon = 0x0000,  .reg_cache.iocon = 0b0100010001000100,                \
++		.reg_cache.gppu = 0x0,	     .reg_cache.intf = 0x0,                                \
++		.reg_cache.intcap = 0x0,     .reg_cache.gpio = 0x0,                                \
++		.reg_cache.olat = 0x0,                                                             \
+ 	};                                                                                         \
+-	static struct mcp23xxx_config mcp230xx_##inst##_config = {     \
+-		.config = {					       \
+-			.port_pin_mask =			       \
+-				GPIO_PORT_PIN_MASK_FROM_DT_INST(n),    \
+-		},						       \
+-		.bus =  \
+-	{                                                                                          \
+-		.i2c = I2C_DT_SPEC_INST_GET(n)                                          \
+-	}, \
+-		.ngpios =  DT_INST_PROP(n, ngpios),			       \
+-		.read_fn = mcp230xx_read_port_regs,              \
+-		.write_fn = mcp230xx_write_port_regs,              \
+-		.bus_fn = mcp230xx_bus_is_ready              \
+-	};                           \
+-	DEVICE_DT_INST_DEFINE(n, gpio_mcp23xxx_init, NULL, &mcp230xx_##inst##_drvdata,             \
+-			      &mcp230xx_##inst##_config, POST_KERNEL,                              \
++	static struct mcp23xxx_config mcp230xx_config_##n = {                                      \
++		.config =                                                                          \
++			{                                                                          \
++				.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n),               \
++			},                                                                         \
++		.bus = {.i2c = I2C_DT_SPEC_INST_GET(n)},                                           \
++		.ngpios = DT_INST_PROP(n, ngpios),                                                 \
++		.read_fn = mcp230xx_read_port_regs,                                                \
++		.write_fn = mcp230xx_write_port_regs,                                              \
++		.bus_fn = mcp230xx_bus_is_ready};                                                  \
++	DEVICE_DT_INST_DEFINE(n, gpio_mcp23xxx_init, NULL, &mcp230xx_drvdata_##n,                  \
++			      &mcp230xx_config_##n, POST_KERNEL,                                   \
+ 			      CONFIG_GPIO_MCP230XX_INIT_PRIORITY, &gpio_mcp23xxx_api_table);
+ 
+ DT_INST_FOREACH_STATUS_OKAY(GPIO_MCP230XX_DEVICE)
