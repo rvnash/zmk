@@ -569,8 +569,18 @@ could have silently gone wrong:
 | debounce moved to devicetree | `CONFIG_ZMK_KSCAN_DEBOUNCE_{PRESS,RELEASE}_MS=` empty, deferring to the DT properties |
 | size | FLASH 27.02% of 788 KB, up from 22.02% on the old firmware; `richkbd.uf2` 436224 B |
 
-A second commit converted the keymap's nine deprecated `label` properties to `display-name`, which
-was the only warning the build produced about our own files.
+Two follow-up commits cleaned up and hardened it, and one of them broke the build first:
+
+- Converting the keymap's nine deprecated `label` properties to `display-name` **failed**, in an
+  instructive way. The `MACRO` and `SHIFT_MORPH` helpers take a parameter named `name`, and
+  `display-name` contains that token, so the C preprocessor expanded the property itself:
+  `devicetree error: 'display-scrn_shot' appears in /macros/scrn_shot_macro`. Renaming the helper
+  parameter to `nm` fixed it.
+- Adding `sense-edge-mask = <0x4>` on `&gpio0` for the deep-sleep wake path (see below).
+
+The final green run is `33778557844`. Its devicetree confirms `sense-edge-mask = < 0x4 >`, all three
+expanders, and zero warnings from our files. Artifact: `richkbd.uf2`, 436224 B, md5
+`f5db839299acd281fb2505c1cd3b27ee`.
 
 **A green build says the firmware compiles and links. It says nothing about whether the keyboard
 works** — in particular nothing about the sleep risk below.
