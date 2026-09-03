@@ -251,7 +251,7 @@ connected.
 
 | date | battery % | notes |
 | --- | --- | --- |
-| 2026-09-03 | | baseline start — firmware above, freshly flashed |
+| 2026-09-03 | 45% | baseline start — firmware above, freshly flashed; read from the Bluetooth panel |
 | | | |
 | | | |
 | | | |
