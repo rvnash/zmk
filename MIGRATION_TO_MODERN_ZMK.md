@@ -88,6 +88,20 @@ U4-1            XIAO D0
 nRF52840's internal one, which is why the overlay says
 `interrupt-gpios = <&xiao_d 0 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>`.
 
+Two more facts from the same netlist, both verified rather than inferred:
+
+```
+U1-4,  U2-4,  U3-4    = GPB7    single-pin net → unconnected
+U1-24, U2-24, U3-24   = GPA7    single-pin net → unconnected
+U1-14, U2-14, U3-14   = RESET   single-pin net → floating
+```
+
+The unconnected GPA7/GPB7 are exactly the two bits per chip that `iodir = 0x7F7F` turns into
+outputs — see the end of this section. The floating `RESET` is out of spec per the MCP23017
+datasheet (it wants to be biased) but has worked for years; it is **not** a migration concern, just
+a note for a future board revision. It does mean the modern driver's optional `reset-gpios` is
+unavailable to us — there is no GPIO on that net to name.
+
 For that to work at all, every one of those six pins must be **open-drain**. That is
 `IOCON.ODR` (bit 2) — one of the two bits in our `iocon = 0x4444`. Note the INTA/INTB pairs are
 physically tied *within* each chip too, so without open-drain a single chip's two INT pins fight
@@ -144,8 +158,13 @@ fork permanently. Slow, and doesn't help until it lands in a ZMK-pinned Zephyr.
 
 ### Also not migrating: `iodir = 0x7F7F`
 
-Our patch makes GPA7/GPB7 outputs on each chip — the two pins per expander that aren't in
-`input-gpios` — so unused inputs don't float. There is no upstream equivalent.
+Our patch makes GPA7/GPB7 outputs on each chip — so unused inputs don't float. There is no
+upstream equivalent.
+
+This was a deliberate, hardware-informed choice, not stray tinkering: the netlist above shows
+GPA7 and GPB7 physically unconnected on all three expanders, and they are precisely the two bits
+`0x7F7F` clears (low byte = IODIRA/GPA0–7, high byte = IODIRB/GPB0–7). Do not "clean it up" without
+replacing it.
 
 With per-pin interrupt configuration this matters much less: the modern driver only sets `GPINTEN`
 for pins ZMK actually configures, so a floating unused pin can no longer generate interrupts. What
@@ -200,12 +219,65 @@ Firmware then comes from GHA artifacts. Local Docker builds remain possible (see
 
 ## 5. Steps
 
-### Step 0 — baseline and inventory
+### Step 0 — prep: do all of this *before* the migration weekend
 
-1. Flash and confirm today's CLI-built firmware. Do not start from a broken keyboard.
-2. Archive a known-good uf2 **outside** `build/` (see the lesson in `HOW_TO_BUILD_FROM_CLI.md`).
-3. Record current behaviour to compare against later: idle current draw, wake-from-sleep latency,
-   any missed-keypress behaviour under fast typing.
+None of it requires committing to the migration, and item 1 has to start weeks ahead.
+
+**0.1 Start the power baseline now. This is the only perishable item.**
+
+Risk R4 is the real danger here, and the old firmware's power behaviour can only be measured while
+the old firmware is the one running. Record the date and battery percentage today, then check daily
+for one to two weeks, and write the %/day figure into this file.
+
+Without that number a post-migration regression is unfalsifiable — which is exactly the position
+the 2023 bring-up ended in ("fixed the power consumption problem, but not sure which change did
+it"). One line of data now replaces a week of bisecting later.
+
+**0.2 Make rollback real, then prove it works.**
+
+"The uf2 in `build/`" is not a rollback plan — a `-p` build deletes that directory, which is how a
+saved firmware was already lost once. Commit the artifacts:
+
+```sh
+mkdir -p firmware
+cp build/zephyr/zmk.uf2 firmware/zmk-2026-09-03-known-good.uf2   # current, confirmed working
+cp ~/Downloads/zmk.uf2  firmware/zmk-2024-08-15-devcontainer.uf2 # older devcontainer build
+```
+
+355 KB each; fine in git. Then **actually flash the 2024 one and flash back to current.** A
+rollback path that has never been exercised is not a rollback path, and flashing on this board has
+non-obvious failure modes (USB hubs — see `HOW_TO_BUILD_FROM_CLI.md`).
+
+**0.3 De-risk the toolchain separately from the keyboard.**
+
+The migration bundles two independent risks: *does modern ZMK build and flash for me at all*, and
+*does richkbd work on it*. Separate them. In one evening:
+
+1. Create the config repo from `unified-zmk-config-template` (§4 layout).
+2. Copy the shield in as-is, no fixes.
+3. Let GHA build it, download the artifact, flash it.
+
+Expect the keyboard **not** to work — there is no `ODR` bit yet (§3). The point is to validate the
+module layout, the `xiao_ble/nrf52840/zmk` board target, the workflow, artifact download, and
+flashing a GHA build. Then the migration weekend is only about the keyboard.
+
+**0.4 Stand up the zephyr fork while you are there.**
+
+Fork `zmkfirmware/zephyr`, branch from `v4.1.0+zmk-fixes`, make the one-line change from §3 Option
+A, push. Fifteen minutes, and it is the one piece of this migration with no upstream equivalent.
+
+**0.5 Leave the current tree alone.**
+
+Do **not** pre-fix `SHIELD_MY_BOARD`, the empty `seeeduino_xiao.overlay`, or the stale `intcon`
+comment in the patch. That is churn against a working keyboard for no benefit; step 2 fixes them in
+the new repo where they cost nothing.
+
+**0.6 Docker volumes: keep until 0.2 is done, then discard.**
+
+The volume copy of `gpio_mcp230xx.c` is now byte-identical to the patched tree
+(`md5 78eac5d7bece7c745e5b869ab19dc755`, both sides), so `patches/0001-…` fully reproduces it. What
+remains in those ~6 GB is a re-clonable older zephyr revision and 298 MB of ccache. Once you have
+*proven* you can flash an archived uf2, they stop being a safety net — then §5 step 8 applies.
 
 ### Step 1 — create the config module
 
@@ -296,7 +368,7 @@ whether it's still needed; ZMK may handle QSPI power-down properly now.
 | `CONFIG_ZMK_KSCAN_DEBOUNCE_PRESS_MS=0` | drop — becomes `debounce-press-ms` in DT |
 | `CONFIG_ZMK_KSCAN_DEBOUNCE_RELEASE_MS=5` | drop — becomes `debounce-release-ms` in DT |
 | `CONFIG_BT=y` | keep (likely redundant, ZMK defaults it) |
-| `CONFIG_ZMK_IDLE_TIMEOUT=1` | keep — **but verify**, `1` ms is suspicious; probably meant to be aggressive, may be a typo for `1000` |
+| `CONFIG_ZMK_IDLE_TIMEOUT=1` | keep — verified deliberate, not a typo. `app/Kconfig:319` is "Milliseconds of inactivity before entering idle state (OLED shutoff, etc)", default 30000. There is no OLED, and idle and deep-sleep timers both measure from last activity, so `1` does not hasten sleep — it just enters idle immediately, which is free when wake is interrupt-driven |
 | `CONFIG_ZMK_SLEEP=y`, `CONFIG_ZMK_IDLE_SLEEP_TIMEOUT=900000` | keep |
 | `CONFIG_ZMK_KSCAN_DIRECT_POLLING=n` | keep as an explicit statement of intent (still a valid symbol) |
 | `CONFIG_ZMK_USB=n`, `CONFIG_ZMK_USB_LOGGING=n` | keep |
@@ -418,6 +490,13 @@ curl -sSfL https://raw.githubusercontent.com/zmkfirmware/zmk/main/app/module/dri
   | grep -n "interrupt_configure"
 
 # the INT net, from the fab netlist
-grep -iE "INT" \
-  ~/pcb/richkbd_wireless/pcb/production/Rich_Keyboard_2.0_2023-07-27_22-08-39/netlist.ipc
+NL=~/pcb/richkbd_wireless/pcb/production/Rich_Keyboard_2.0_2023-07-27_22-08-39/netlist.ipc
+grep -iE "INT" "$NL"
+
+# every pin of an expander and the net it lands on (single-pin nets = unconnected).
+# This is how GPA7/GPB7-unconnected and RESET-floating were established.
+grep '^327' "$NL" | awk '$2=="U1"{printf "%s=%s ", $3, substr($1,4)}'
+
+# idle-timeout semantics, in this tree
+grep -n -A6 "config ZMK_IDLE_TIMEOUT" app/Kconfig
 ```
