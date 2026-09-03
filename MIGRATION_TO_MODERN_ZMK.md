@@ -540,3 +540,51 @@ grep '^327' "$NL" | awk '$2=="U1"{printf "%s=%s ", $3, substr($1,4)}'
 # idle-timeout semantics, in this tree
 grep -n -A6 "config ZMK_IDLE_TIMEOUT" app/Kconfig
 ```
+---
+
+## 8. Execution log — 2026-09-03
+
+What was actually done, including where reality differed from the plan above.
+
+### Created
+
+| thing | where |
+| --- | --- |
+| config module | [rvnash/richkbd-zmk-config](https://github.com/rvnash/richkbd-zmk-config) (private) |
+| zephyr fork, ODR fix | [rvnash/zephyr](https://github.com/rvnash/zephyr) branch `richkbd-odr` — 1 line in `.c`, 1 in `.h` |
+| zephyr fork, sleep fallback | same repo, branch `richkbd-odr-level-int` — **untested**, see that repo's `VALIDATION.md` |
+| rollback artifacts | `firmware/` in this repo |
+
+### Decisions that differed from the plan
+
+**ZMK `main` (Zephyr 4.1) was kept over ZMK `v0.3` (Zephyr 3.5), though 3.5 would have been a
+smaller diff.** Zephyr 3.5 already has the interrupt support *and* fixes the `##inst##` bug (by
+renaming the macro parameter to `inst`), keeps the generic `microchip,mcp230xx` compatible, keeps
+`ngpios` as a DT property, and ZMK v0.3 still uses the old `seeeduino_xiao_ble` board name — so the
+overlay would have needed almost no changes. It was rejected anyway: v0.3 pins a Zephyr from 2023,
+which is most of the way back to the position this migration exists to escape. The larger 4.1 diff
+buys an actively maintained base.
+
+**`config/west.yml` blocklists zephyr from ZMK's import rather than relying on override
+precedence.** West does let a top-level manifest override an imported project of the same name, but
+spelling it out (`import: {file: app/west.yml, name-blocklist: [zephyr]}` on the `zmk` project,
+then a full `zephyr` entry) is unambiguous and fails loudly if wrong.
+
+### A risk the plan missed: deep-sleep wake
+
+Documented fully in the new repo's `VALIDATION.md`. In short: the old patched kscan put
+`GPIO_INT_LEVEL_ACTIVE` on the nRF INT pin, and on nRF52 only a level interrupt (GPIO `SENSE` +
+GPIOTE `PORT`) can wake the SoC from System OFF. The upstream mcp23xxx driver hard-codes
+`GPIO_INT_EDGE_TO_ACTIVE` for that pin and has no `PM_DEVICE` hooks at all, so **waking from the
+15-minute deep sleep is expected to fail.** Branch `richkbd-odr-level-int` is the prepared fix;
+`CONFIG_ZMK_SLEEP=n` is the retreat.
+
+This is the single most likely reason the migration gets abandoned. It is also the reason the power
+comparison (§5 step 0.1) matters: without deep sleep, battery life regresses, and the baseline is
+what proves by how much.
+
+### Not done
+
+Everything requiring the physical keyboard: §5 step 7 in full, and the power measurement. The
+firmware has never been flashed. `firmware/zmk-2026-09-03-known-good.uf2` remains what is on the
+board.
