@@ -1,6 +1,12 @@
 # Migration plan: modern ZMK, no fork, (almost) no patches
 
-**Status:** not started. Captured 2026-09-03. Nothing in this document has been executed.
+**Status:** **in progress**, started 2026-09-03. Steps 1–5 are done and live in a new repo,
+[rvnash/richkbd-zmk-config](https://github.com/rvnash/richkbd-zmk-config); the zephyr fork is
+[rvnash/zephyr](https://github.com/rvnash/zephyr) branch `richkbd-odr`. What is **not** done is
+everything that needs the physical keyboard: step 7 validation and the power comparison. Do not
+flash until you have read §8.
+
+The plan below is kept as written, with per-step notes on what actually happened.
 
 **Goal:** move richkbd from this 2023-era ZMK fork (Zephyr 3.2) to current ZMK (Zephyr 4.1) as an
 out-of-tree config module, retiring both local patches and the Docker-volume toolchain.
