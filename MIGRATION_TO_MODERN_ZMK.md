@@ -592,16 +592,20 @@ then a full `zephyr` entry) is unambiguous and fails loudly if wrong.
 
 ### A risk the plan missed: deep-sleep wake
 
-Documented fully in the new repo's `VALIDATION.md`. In short: the old patched kscan put
-`GPIO_INT_LEVEL_ACTIVE` on the nRF INT pin, and on nRF52 only a level interrupt (GPIO `SENSE` +
-GPIOTE `PORT`) can wake the SoC from System OFF. The upstream mcp23xxx driver hard-codes
-`GPIO_INT_EDGE_TO_ACTIVE` for that pin and has no `PM_DEVICE` hooks at all, so **waking from the
-15-minute deep sleep is expected to fail.** Branch `richkbd-odr-level-int` is the prepared fix;
-`CONFIG_ZMK_SLEEP=n` is the retreat.
+Documented fully in the new repo's `VALIDATION.md`. The old patched kscan put
+`GPIO_INT_LEVEL_ACTIVE` on the nRF INT pin, and on nRF52 only `SENSE` (not a GPIOTE channel) is
+detectable in System OFF. The upstream mcp23xxx driver hard-codes `GPIO_INT_EDGE_TO_ACTIVE` for
+that pin and has no `PM_DEVICE` hooks, so deep-sleep wake looked doomed.
 
-This is the single most likely reason the migration gets abandoned. It is also the reason the power
-comparison (§5 step 0.1) matters: without deep sleep, battery life regresses, and the baseline is
-what proves by how much.
+It is not, and the fix needed no patched C. `gpio_nrfx.c` only allocates a GPIOTE IN channel for an
+edge interrupt when the pin is **absent** from its port's `sense-edge-mask`; listed pins use
+`SENSE`. So the overlay now sets `sense-edge-mask = <0x4>` on `&gpio0` — `BIT(2)`, since `xiao_d 0`
+is `&gpio0 2`. One upstream-supported devicetree property, one pin.
+
+Whether that is sufficient is still unverified on hardware, and it remains the most likely reason
+the migration gets abandoned. Fallbacks, in order: the `richkbd-odr-level-int` branch (untested),
+then `CONFIG_ZMK_SLEEP=n`. It is also why the power comparison (§5 step 0.1) matters — without deep
+sleep, battery life regresses, and the baseline is what proves by how much.
 
 ### Not done
 
