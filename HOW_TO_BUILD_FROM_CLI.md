@@ -113,8 +113,12 @@ docker run --rm -it \
 
 Result: `build/zephyr/zmk.uf2`.
 
-`-p` is a pristine (clean) build. For a fast incremental rebuild after a keymap edit, drop it
-along with the board and shield arguments — they are remembered in the build directory:
+`-p` is a pristine (clean) build. **It deletes the entire `build/` directory and recreates it**, so
+never keep anything you care about in there — a saved `zmk.uf2` has been lost that way. Archive
+known-good firmware somewhere outside `build/` (a `firmware/` directory works).
+
+For a fast incremental rebuild after a keymap edit, drop `-p` along with the board and shield
+arguments — they are remembered in the build directory:
 
 ```sh
 docker run --rm -it \
@@ -178,9 +182,11 @@ later picks up the same build directory and still rebuilds incrementally.
 - **Mount at `/workspaces/richkbd_wireless_software` specifically.** The existing `build/`
   directory contains absolute paths from the old devcontainer (`/workspaces/...`). Using the same
   path means CMake's cache stays valid; a different path would force a reconfigure.
-- This Mac is Apple Silicon and the ZMK images are x86_64. If Docker reports no matching
-  manifest, add `--platform linux/amd64`; it will work but run slower under emulation (the
-  devcontainer had the same cost).
+- No emulation is involved. `zmk-build-arm:3.2` is multi-arch and the copy pulled here is
+  `linux/arm64`, so it runs natively on Apple Silicon (the "arm" in the image name refers to the
+  *firmware* target, not the host). Verify with
+  `docker image inspect docker.io/zmkfirmware/zmk-build-arm:3.2 --format '{{.Os}}/{{.Architecture}}'`.
+  Only add `--platform linux/amd64` if Docker ever reports no matching manifest.
 - The image used by CI (`.github/workflows/build.yml`) is `zmk-build-arm:3.2`; the devcontainer
   used `zmk-dev-arm:3.2`. Either builds this firmware; `dev` also carries editor/debug extras.
 - If CMake ever complains that it cannot find the Zephyr package, run `west zephyr-export` (in the
@@ -190,10 +196,18 @@ later picks up the same build directory and still rebuilds incrementally.
 
 ## Flashing
 
-1. Put the keyboard into bootloader mode. If the firmware is working: press **Nav +
-   top-left-most key**. Otherwise double-tap the XIAO's reset button.
-2. It mounts as `/Volumes/XIAO-SENSE`.
-3. Copy the firmware — from the Mac, not from inside the container:
+1. **Plug the keyboard directly into a Mac USB port — not through a hub.** Through a hub the
+   bootloader resets, fails to enumerate in time, and boots straight back into the keyboard
+   firmware a few seconds later. This will cost you half an hour if you forget it.
+2. Put the keyboard into bootloader mode. If the firmware is working: **hold the middle left thumb
+   key** (`&qlt NAV SPACE`) and **tap the top-left-most key** (`&bootloader`, `richkbd.keymap:153`).
+   Otherwise double-tap the XIAO's reset button, which holds the bootloader open longer.
+   - `quick-tap-ms = <240>`: if you typed a space in the previous 240 ms, holding SPACE repeats the
+     space instead of activating Nav. Pause a beat first.
+   - In bootloader mode the XIAO's LED **fades slowly in and out**. That is the check that doesn't
+     depend on the Mac.
+3. It mounts as `/Volumes/XIAO-SENSE`.
+4. Copy the firmware — from the Mac, not from inside the container:
 
    ```sh
    cp -X build/zephyr/zmk.uf2 /Volumes/XIAO-SENSE
@@ -202,3 +216,19 @@ later picks up the same build directory and still rebuilds incrementally.
 `cp` usually reports `cp: /Volumes/XIAO-SENSE/zmk.uf2: fcopyfile failed: Input/output error`.
 That is expected and harmless — the bootloader reboots the board the moment the file lands, which
 tears the volume out from under `cp`. The board flashing and rebooting is the real success signal.
+
+### `cp: /Volumes/XIAO-SENSE: Operation not permitted`
+
+**This means the drive is not mounted.** It is not a permissions problem, and no amount of Full
+Disk Access will fix it. When the destination does not exist, `cp` treats `/Volumes/XIAO-SENSE` as
+a *filename to create inside* `/Volumes`, which is root-owned and SIP-protected — hence `Operation
+not permitted` instead of the `No such file or directory` you would expect. Reproduce it with
+`cp /etc/hosts /Volumes/NO-SUCH-DRIVE` to convince yourself.
+
+Check `ls /Volumes/` and `diskutil list`. If no XIAO volume is there, go back to steps 1 and 2:
+hub, cable (charge-only USB-C cables behave exactly like this), or the board never reached the
+bootloader.
+
+Note that `richkbd.conf` sets `CONFIG_ZMK_USB=n`, so the keyboard **never** appears as a USB device
+— only over BLE. The bootloader is the only thing on this board that enumerates USB, so "it came
+back as a keyboard" tells you nothing about whether the USB data path works.
