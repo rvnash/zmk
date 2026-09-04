@@ -1,10 +1,13 @@
 # Migration plan: modern ZMK, no fork, (almost) no patches
 
-**Status:** **in progress**, started 2026-09-03. Steps 1–5 are done and live in a new repo,
-[rvnash/richkbd-zmk-config](https://github.com/rvnash/richkbd-zmk-config); the zephyr fork is
-[rvnash/zephyr](https://github.com/rvnash/zephyr) branch `richkbd-odr`. What is **not** done is
-everything that needs the physical keyboard: step 7 validation and the power comparison. Do not
-flash until you have read §8.
+**Status:** **COMPLETE**, 2026-09-04. The keyboard runs modern ZMK from
+[rvnash/richkbd-zmk-config](https://github.com/rvnash/richkbd-zmk-config) — all 42 keys, six
+layers, BLE, interrupt-driven scanning. **Read `STATUS.md` in that repo for the current state**;
+it lists what still is not ideal. This file is now history plus the battery baseline log.
+
+One feature was lost: **deep sleep**. `CONFIG_ZMK_SLEEP=y` with a kscan whose pins live on I²C
+expanders leaves the board dead from boot, due to two upstream ZMK bugs. Details and a repro are
+in that `STATUS.md`.
 
 The plan below is kept as written, with per-step notes on what actually happened.
 
@@ -603,23 +606,26 @@ then a full `zephyr` entry) is unambiguous and fails loudly if wrong.
 
 ### A risk the plan missed: deep-sleep wake
 
-Documented fully in the new repo's `VALIDATION.md`. The old patched kscan put
-`GPIO_INT_LEVEL_ACTIVE` on the nRF INT pin, and on nRF52 only `SENSE` (not a GPIOTE channel) is
-detectable in System OFF. The upstream mcp23xxx driver hard-codes `GPIO_INT_EDGE_TO_ACTIVE` for
-that pin and has no `PM_DEVICE` hooks, so deep-sleep wake looked doomed.
+The plan predicted this one, and then got the cause wrong twice.
 
-It is not, and the fix needed no patched C. `gpio_nrfx.c` only allocates a GPIOTE IN channel for an
-edge interrupt when the pin is **absent** from its port's `sense-edge-mask`; listed pins use
-`SENSE`. So the overlay now sets `sense-edge-mask = <0x4>` on `&gpio0` — `BIT(2)`, since `xiao_d 0`
-is `&gpio0 2`. One upstream-supported devicetree property, one pin.
+What the plan feared: the upstream mcp23xxx driver configures the shared INT line
+`GPIO_INT_EDGE_TO_ACTIVE`, and on nRF52 only `SENSE` survives System OFF, so waking would fail.
+The fix looked like `sense-edge-mask` on `&gpio0`, which the overlay duly sets.
 
-Whether that is sufficient is still unverified on hardware, and it remains the most likely reason
-the migration gets abandoned. Fallbacks, in order: the `richkbd-odr-level-int` branch (untested),
-then `CONFIG_ZMK_SLEEP=n`. It is also why the power comparison (§5 step 0.1) matters — without deep
-sleep, battery life regresses, and the baseline is what proves by how much.
+What actually happened: `sense-edge-mask` was never the problem — a ladder rung with it, and with
+the expanders and shared INT line, booted fine. Deep sleep fails for unrelated reasons in ZMK's
+power management: with `PM_DEVICE=y` the kscan driver configures its pins from a PM `RESUME`
+action that ZMK triggers before installing the kscan callback, and the alternative
+`CONFIG_PM_DEVICE_RUNTIME=y` branch does not compile at all. Both are recorded with file
+references in the new repo's `STATUS.md`.
 
-### Not done
+Three other things had to be fixed in the zephyr fork before the keyboard worked, none of them
+anticipated here: the driver deadlocking when init fails, the first I²C transaction after a warm
+reset timing out and aborting one expander's setup, and `IOCON.ODR` (which the plan did get
+right). The second of those is why a whole chip's keys read as permanently held.
 
-Everything requiring the physical keyboard: §5 step 7 in full, and the power measurement. The
-firmware has never been flashed. `firmware/zmk-2026-09-03-known-good.uf2` remains what is on the
-board.
+### Outstanding after completion
+
+The firmware works; what remains is measurement and upstream work, tracked in the new repo's
+`STATUS.md`. The one item that lives here is the **battery baseline** below (§5 step 0.1) — the
+comparison against it is what prices the loss of deep sleep.
